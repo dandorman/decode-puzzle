@@ -29,19 +29,23 @@ def decode input
         first_chars = ('a'.ord + first_digits - 1).chr
         suffixes = helper.call(input[last_char_index..-1])
         if suffixes.empty?
-          output << [first_digits, first_chars]
+          output << [[first_digits, first_chars]]
         else
           suffixes.each do |suffix|
-            output << [first_digits, first_chars] + suffix
+            output << [[first_digits, first_chars]] + suffix
           end
         end
 
         last_char_index += 1
       end
-    end  # .tap { |output| $stderr.puts "#{input.inspect} => #{output.inspect}" }
+    end # .tap { |output| $stderr.puts "#{input.inspect} => #{output.inspect}" }
   end
 
-  helper[input].reject { |array| array.select { |el| !(String === el) }.map(&:to_s).join.length != input.length }.map { |array| array.select { |el| String === el }.join }
+  helper[input].reject { |candidate|
+    candidate.map(&:first).map(&:to_s).join.length != input.length
+  }.map { |candidate|
+    candidate.map(&:last).join
+  }
 end
 
 require 'rspec'
