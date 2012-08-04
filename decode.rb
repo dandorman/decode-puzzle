@@ -16,41 +16,35 @@
 #     decode('2222') returns array('bbbb','bbv','bvb','vbb','vv')
 #     decode('0000') returns array()
 
-require 'rspec'
-
 def decode input
+  input = input.to_s
+
   helper = -> input do
     [].tap do |output|
-      raise 'leading zero' if input[0] == '0'
-
       last_char_index = 1
       while last_char_index <= input.length
-        begin
-          first_digits = input[0...last_char_index].to_i
-          break unless (1..26) === first_digits
+        first_digits = input[0...last_char_index].to_i
+        break unless (1..26) === first_digits
 
-          first_chars = ('a'.ord + first_digits - 1).chr
-          suffixes = helper.call(input[last_char_index..-1])
-          if suffixes.empty?
-            output << first_chars
-          else
-            suffixes.each do |suffix|
-              output << "%s%s" % [first_chars, suffix]
-            end
+        first_chars = ('a'.ord + first_digits - 1).chr
+        suffixes = helper.call(input[last_char_index..-1])
+        if suffixes.empty?
+          output << [first_digits, first_chars]
+        else
+          suffixes.each do |suffix|
+            output << [first_digits, first_chars] + suffix
           end
-        rescue
-          # do nothing
-        ensure
-          last_char_index += 1
         end
+
+        last_char_index += 1
       end
-    end
+    end  # .tap { |output| $stderr.puts "#{input.inspect} => #{output.inspect}" }
   end
 
-  helper[input.to_s]
-rescue
-  []
+  helper[input].reject { |array| array.select { |el| !(String === el) }.map(&:to_s).join.length != input.length }.map { |array| array.select { |el| String === el }.join }
 end
+
+require 'rspec'
 
 describe 'decode' do
   it "returns [] for ''" do
