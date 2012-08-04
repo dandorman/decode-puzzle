@@ -16,66 +16,118 @@
 #     decode('2222') returns array('bbbb','bbv','bvb','vbb','vv')
 #     decode('0000') returns array()
 
-def decode input
-  input = input.to_s
+class Mapping
+  def self.from digits, options = {}
+    new digits, options.fetch(:to)
+  end
 
-  helper = -> input do
+  attr_reader :digits, :char
+
+  def initialize digits, char
+    @digits = digits
+    @char = char.to_s
+  end
+
+  def digit_string
+    digits.to_s
+  end
+end
+
+class Translation
+  def initialize input, mappings
+    @input = input.to_s
+    @mappings = Array(mappings)
+  end
+
+  def to_ary
+    mappings.dup
+  end
+
+  def valid?
+    mappings.map(&:digit_string).join == input
+  end
+
+  def output
+    mappings.map(&:char).join
+  end
+
+  private
+
+  attr_reader :input, :mappings
+end
+
+class Decoder
+  def decode input
+    helper(input.to_s).select(&:valid?).map(&:output)
+  end
+
+  private
+
+  def helper input
     [].tap do |output|
       last_char_index = 1
       while last_char_index <= input.length
         first_digits = input[0...last_char_index].to_i
-        break unless (1..26) === first_digits
+        break unless valid_number? first_digits
 
-        first_chars = ('a'.ord + first_digits - 1).chr
-        suffixes = helper.call(input[last_char_index..-1])
-        if suffixes.empty?
-          output << [[first_digits, first_chars]]
-        else
-          suffixes.each do |suffix|
-            output << [[first_digits, first_chars]] + suffix
-          end
-        end
+        first_chars = charify first_digits
+        mapping = Mapping.from first_digits, to: first_chars
+
+        suffixes = helper input[last_char_index..-1]
+        add_output input, output, mapping, suffixes
 
         last_char_index += 1
       end
-    end # .tap { |output| $stderr.puts "#{input.inspect} => #{output.inspect}" }
+    end
   end
 
-  helper[input].reject { |candidate|
-    candidate.map(&:first).map(&:to_s).join.length != input.length
-  }.map { |candidate|
-    candidate.map(&:last).join
-  }
+  def valid_number? number
+    (1..26) === number
+  end
+
+  def charify number
+    ('a'.ord + number - 1).chr
+  end
+
+  def add_output input, output, mapping, suffixes
+    if suffixes.empty?
+      output << Translation.new(input, mapping)
+    else
+      suffixes.each do |suffix|
+        output << Translation.new(input, [mapping] + suffix)
+      end
+    end
+  end
 end
 
 require 'rspec'
 
-describe 'decode' do
+describe Decoder do
   it "returns [] for ''" do
-    expect(decode('')).to eq []
+    expect(subject.decode('')).to eq []
   end
 
   it "returns ['a'] for '1'" do
-    expect(decode('1')).to eq ['a']
+    expect(subject.decode('1')).to eq ['a']
   end
 
   it "returns ['aa', 'k'] for '11'" do
-    expect(decode('11')).to eq ['aa', 'k']
+    expect(subject.decode('11')).to eq ['aa', 'k']
   end
 
   it "returns ['je'] for '105'" do
-    expect(decode('105')).to eq ['je']
+    expect(subject.decode('105')).to eq ['je']
   end
 
   it "returns ['bage', 'bqe', 'uge'] for '2175'" do
-    expect(decode('2175')).to eq ['bage', 'bqe', 'uge']
+    expect(subject.decode('2175')).to eq ['bage', 'bqe', 'uge']
   end
 
   it "returns ['bbbb', 'bbv', 'bvb', 'vbb', 'vv'] for '2175'" do
-    expect(decode('2222')).to eq ['bbbb', 'bbv', 'bvb', 'vbb', 'vv']
+    expect(subject.decode('2222')).to eq ['bbbb', 'bbv', 'bvb', 'vbb', 'vv']
   end
 
   it "returns [] for '0000'" do
-    expect(decode('0000')).to eq []
+    expect(subject.decode('0000')).to eq []
   end
 end
