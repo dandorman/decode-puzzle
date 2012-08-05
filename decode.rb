@@ -16,86 +16,102 @@
 #     decode('2222') returns array('bbbb','bbv','bvb','vbb','vv')
 #     decode('0000') returns array()
 
-class Mapping
-  def self.from digits, options = {}
-    new digits, options.fetch(:to)
-  end
-
-  attr_reader :digits, :char
-
-  def initialize digits, char
-    @digits = digits
-    @char = char.to_s
-  end
-
-  def digit_string
-    digits.to_s
-  end
-end
-
-class Translation
-  def initialize input, mappings
-    @input = input.to_s
-    @mappings = Array(mappings)
-  end
-
-  def to_ary
-    mappings.dup
-  end
-
-  def valid?
-    mappings.map(&:digit_string).join == input
-  end
-
-  def output
-    mappings.map(&:char).join
-  end
-
-  private
-
-  attr_reader :input, :mappings
-end
-
-class Decoder
+module Decoder
   def decode input
-    helper(input.to_s).select(&:valid?).map(&:output)
+    Translator.new(input).translate
   end
 
-  private
+  module_function :decode
 
-  def helper input
-    [].tap do |output|
-      last_char_index = 1
-      while last_char_index <= input.length
-        first_digits = input[0...last_char_index].to_i
-        break unless valid_number? first_digits
+  class Translator
+    def initialize input
+      @input = input.to_s
+    end
 
-        first_chars = charify first_digits
-        mapping = Mapping.from first_digits, to: first_chars
+    def translate
+      translations.map(&:output)
+    end
 
-        suffixes = helper input[last_char_index..-1]
-        add_output input, output, mapping, suffixes
+    protected
 
-        last_char_index += 1
+    def translations
+      @output ||= [].tap do |output|
+        index = 1
+        while index <= input.length
+          mapping = mapping_for_input_up_to index
+          break unless mapping.valid?
+
+          mappings_for_rest_of_input = self.class.new(input[index..-1]).translations
+
+          mappings = combine_mappings mapping, mappings_for_rest_of_input
+          mappings.each do |mapping|
+            translation = Translation.new(mapping)
+            output << translation if translation.valid_for? input
+          end
+
+          index += 1
+        end
       end
+    end
+
+    private
+
+    attr_reader :input
+
+    def mapping_for_input_up_to index
+      Mapping.from input[0...index].to_i
+    end
+
+    def combine_mappings first, rest
+      Array(rest).inject([first]) { |mappings, mapping|
+        mappings << [first] + mapping
+      }
     end
   end
 
-  def valid_number? number
-    (1..26) === number
+  class Translation
+    def initialize mappings
+      @mappings = Array(mappings)
+    end
+
+    def to_ary
+      mappings.dup
+    end
+
+    def valid_for? string
+      mappings.map(&:number_string).join == string
+    end
+
+    def output
+      mappings.map(&:letter).join
+    end
+
+    private
+
+    attr_reader :input, :mappings
   end
 
-  def charify number
-    ('a'.ord + number - 1).chr
-  end
+  class Mapping
+    def self.from number
+      new number
+    end
 
-  def add_output input, output, mapping, suffixes
-    if suffixes.empty?
-      output << Translation.new(input, mapping)
-    else
-      suffixes.each do |suffix|
-        output << Translation.new(input, [mapping] + suffix)
-      end
+    attr_reader :number
+
+    def initialize number
+      @number = number
+    end
+
+    def number_string
+      number.to_s
+    end
+
+    def letter
+      @letter ||= (?a.ord + number - 1).chr
+    end
+
+    def valid?
+      (1..26) === number
     end
   end
 end
@@ -129,5 +145,9 @@ describe Decoder do
 
   it "returns [] for '0000'" do
     expect(subject.decode('0000')).to eq []
+  end
+
+  it "includes 'apple' in its results for '11616125'" do
+    expect(subject.decode('11616125')).to include 'apple'
   end
 end
